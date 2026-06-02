@@ -15,13 +15,34 @@ import type {
 } from "@/lib/types";
 
 type Step = "upload" | "review" | "listings";
-const MAX_PHOTOS = 120;
+// Keep a whole batch's sort payload comfortably under Vercel's 4.5 MB request
+// limit (sort sends small thumbnails for every photo at once).
+const MAX_PHOTOS = 100;
 const WRITE_CONCURRENCY = 3;
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `id-${Math.floor(performance.now() * 1000)}-${Math.random()}`;
+}
+
+// Parse a fetch response as JSON, but turn non-JSON error bodies (e.g. a 413
+// "Request Entity Too Large" plain-text page) into a friendly message instead
+// of a cryptic "Unexpected token" error.
+async function readJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (res.status === 413) {
+      throw new Error(
+        "That was too much photo data to send at once. Try sorting fewer photos per batch."
+      );
+    }
+    throw new Error(
+      text.trim().slice(0, 140) || `Request failed (${res.status}).`
+    );
+  }
 }
 
 // Run async workers over items with a fixed concurrency limit.
@@ -119,10 +140,14 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          images: photos.map((p) => ({ mediaType: p.mediaType, data: p.data })),
+          // Use the small thumbnail for sorting to keep the payload small.
+          images: photos.map((p) => ({
+            mediaType: p.mediaType,
+            data: p.previewUrl.split(",")[1],
+          })),
         }),
       });
-      const data = (await res.json()) as SortResponse;
+      const data = (await readJson(res)) as SortResponse;
       if (!data.ok || !data.groups) {
         throw new Error(data.error || "Could not sort the photos.");
       }
@@ -226,7 +251,7 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ profile: "auto", images: imgs }),
         });
-        const data = (await res.json()) as AnalyzeResponse;
+        const data = (await readJson(res)) as AnalyzeResponse;
         if (!data.ok || !data.listing) {
           throw new Error(data.error || "Could not write this listing.");
         }
@@ -285,7 +310,7 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sku: group.sku, listing: group.listing, images }),
         });
-        const data = (await res.json()) as {
+        const data = (await readJson(res)) as {
           success: boolean;
           listingId?: string;
           error?: string;
