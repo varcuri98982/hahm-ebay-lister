@@ -552,11 +552,13 @@ export interface PublishInput {
   listing: ListingResult;
   images: { mediaType: string; data: string }[];
   packageShipping: PackageShippingDetails;
+  publishMode?: "draft" | "publish";
 }
 
 export interface PublishResult {
   success: boolean;
   sku: string;
+  mode?: "draft" | "publish";
   listingId?: string;
   offerId?: string;
   error?: string;
@@ -764,6 +766,10 @@ export async function publishListing(
     return { success: false, sku, error: `Offer creation failed (${r.status}): ${r.text.slice(0, 300)}` };
   } else {
     offerId = r.json?.offerId || "";
+  }
+
+  if (input.publishMode === "draft") {
+    return { success: true, sku, mode: "draft", offerId };
   }
 
   // 4. Publish, with recovery.
