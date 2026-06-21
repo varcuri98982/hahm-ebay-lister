@@ -15,7 +15,7 @@ import {
   acceptedConditionIds,
   type AspectMeta,
 } from "./taxonomy";
-import type { ListingResult } from "@/lib/types";
+import type { ListingResult, PackageShippingDetails } from "@/lib/types";
 
 // ── Constants (from the Python script) ───────────────────────────────────────
 
@@ -551,6 +551,7 @@ export interface PublishInput {
   sku: string;
   listing: ListingResult;
   images: { mediaType: string; data: string }[];
+  packageShipping: PackageShippingDetails;
 }
 
 export interface PublishResult {
@@ -563,12 +564,53 @@ export interface PublishResult {
 
 const CL = { "Content-Language": "en-US" };
 
+function positiveNumber(value: string | undefined): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function validatePackageShipping(pkg: PackageShippingDetails | undefined): string | null {
+  const pounds = positiveNumber(pkg?.weightPounds);
+  const ounces = positiveNumber(pkg?.weightOunces);
+  const length = positiveNumber(pkg?.lengthInches);
+  const width = positiveNumber(pkg?.widthInches);
+  const height = positiveNumber(pkg?.heightInches);
+  if (pounds < 0 || ounces < 0 || length <= 0 || width <= 0 || height <= 0) {
+    return "Package weight and dimensions are required before posting to eBay.";
+  }
+  if (pounds * 16 + ounces <= 0) {
+    return "Package weight must be greater than 0 before posting to eBay.";
+  }
+  return null;
+}
+
+function packageWeightAndSize(pkg: PackageShippingDetails) {
+  const pounds = positiveNumber(pkg.weightPounds);
+  const ounces = positiveNumber(pkg.weightOunces);
+  return {
+    dimensions: {
+      length: positiveNumber(pkg.lengthInches),
+      width: positiveNumber(pkg.widthInches),
+      height: positiveNumber(pkg.heightInches),
+      unit: "INCH",
+    },
+    weight: {
+      value: Math.round((pounds * 16 + ounces) * 10) / 10,
+      unit: "OUNCE",
+    },
+  };
+}
+
 export async function publishListing(
   accessToken: string,
   setup: AccountSetup,
   input: PublishInput
 ): Promise<PublishResult> {
   const { sku, listing } = input;
+  const packageValidation = validatePackageShipping(input.packageShipping);
+  if (packageValidation) {
+    return { success: false, sku, error: packageValidation };
+  }
   const catKey = String(listing.category || "other");
   const { categoryId: staticCat, fallbacks } = resolveCategory(listing);
   // Ask eBay for the real LEAF category from the title + hint; fall back to the
@@ -622,6 +664,7 @@ export async function publishListing(
     },
     condition,
     conditionDescription: listing.condition_notes || "",
+    packageWeightAndSize: packageWeightAndSize(input.packageShipping),
     availability: { shipToLocationAvailability: { quantity: 1 } },
   };
 

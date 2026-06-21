@@ -17,6 +17,8 @@ import crypto from "crypto";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
+export const ACCESS_COOKIE = "app_access";
+const ACCESS_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
 
 // Per-serverless-instance limiter. Not a global guarantee (each warm lambda
 // has its own map), but it blunts burst abuse at zero infra cost.
@@ -26,6 +28,39 @@ function timingSafeEqual(a: string, b: string): boolean {
   const ha = crypto.createHash("sha256").update(a).digest();
   const hb = crypto.createHash("sha256").update(b).digest();
   return crypto.timingSafeEqual(ha, hb);
+}
+
+function accessSignature(secret: string): string {
+  return crypto.createHmac("sha256", secret).update("app-access:v1").digest("base64url");
+}
+
+export function isAccessConfigured(): boolean {
+  return Boolean(process.env.APP_SECRET);
+}
+
+export function verifyAccessCode(code: string): boolean {
+  const secret = process.env.APP_SECRET;
+  if (!secret) return process.env.NODE_ENV !== "production" && process.env.VERCEL_ENV !== "production";
+  return timingSafeEqual(code, secret);
+}
+
+export function hasValidAccessCookie(req: NextRequest): boolean {
+  const secret = process.env.APP_SECRET;
+  if (!secret) return process.env.NODE_ENV !== "production" && process.env.VERCEL_ENV !== "production";
+  const provided = req.cookies.get(ACCESS_COOKIE)?.value || "";
+  return Boolean(provided) && timingSafeEqual(provided, accessSignature(secret));
+}
+
+export function setAccessCookie(res: NextResponse): void {
+  const secret = process.env.APP_SECRET;
+  if (!secret) return;
+  res.cookies.set(ACCESS_COOKIE, accessSignature(secret), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL_ENV),
+    sameSite: "lax",
+    path: "/",
+    maxAge: ACCESS_COOKIE_MAX_AGE,
+  });
 }
 
 function clientIp(req: NextRequest): string {
@@ -67,8 +102,7 @@ export function guardApiRequest(req: NextRequest): NextResponse | null {
   const limited = rateLimitRequest(req);
   if (limited) return limited;
 
-  const secret = process.env.APP_SECRET;
-  if (!secret) {
+  if (!process.env.APP_SECRET) {
     // Fail closed in production — never run a deployed app without an access code.
     if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
       return NextResponse.json(
@@ -83,8 +117,7 @@ export function guardApiRequest(req: NextRequest): NextResponse | null {
     return null; // local development only
   }
 
-  const provided = req.headers.get("x-app-secret") ?? "";
-  if (!provided || !timingSafeEqual(provided, secret)) {
+  if (!hasValidAccessCookie(req)) {
     return NextResponse.json(
       { ok: false, code: "ACCESS_CODE_REQUIRED", error: "Access code required." },
       { status: 401 }

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EBAY_COOKIE, accessTokenFromCookie } from "@/lib/ebay/session";
 import { guardApiRequest } from "@/lib/api-guard";
-import { fetchAccountSetup, publishListing } from "@/lib/ebay/publish";
+import {
+  fetchAccountSetup,
+  publishListing,
+  validatePackageShipping,
+} from "@/lib/ebay/publish";
 import type { PublishInput } from "@/lib/ebay/publish";
 
 // Photo upload + several eBay calls + recovery loops — give it room.
@@ -22,6 +26,13 @@ export async function POST(req: NextRequest) {
   if (!body.sku || !body.listing || !Array.isArray(body.images) || body.images.length === 0) {
     return NextResponse.json(
       { success: false, error: "Missing SKU, listing, or photos." },
+      { status: 400 }
+    );
+  }
+  const packageError = validatePackageShipping(body.packageShipping);
+  if (packageError) {
+    return NextResponse.json(
+      { success: false, error: packageError },
       { status: 400 }
     );
   }

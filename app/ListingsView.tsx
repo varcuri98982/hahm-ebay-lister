@@ -6,13 +6,19 @@ import {
   listingsToCsv,
   listingsToJson,
 } from "@/lib/export";
-import type { ItemGroup, ListingResult, Photo } from "@/lib/types";
+import type {
+  ItemGroup,
+  ListingResult,
+  PackageShippingDetails,
+  Photo,
+} from "@/lib/types";
 
 interface ListingsViewProps {
   groups: ItemGroup[];
   photoById: (id: string) => Photo | undefined;
   ebayConnected: boolean;
   onEdit: (groupId: string, patch: Partial<ListingResult>) => void;
+  onPackageEdit: (groupId: string, patch: Partial<PackageShippingDetails>) => void;
   onRetry: (groupId: string) => void;
   onPost: (groupId: string) => void;
   onPostAll: () => void;
@@ -24,6 +30,7 @@ export function ListingsView({
   photoById,
   ebayConnected,
   onEdit,
+  onPackageEdit,
   onRetry,
   onPost,
   onPostAll,
@@ -83,6 +90,7 @@ export function ListingsView({
             photoById={photoById}
             ebayConnected={ebayConnected}
             onEdit={onEdit}
+            onPackageEdit={onPackageEdit}
             onRetry={onRetry}
             onPost={onPost}
           />

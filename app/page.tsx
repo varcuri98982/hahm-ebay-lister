@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiPost } from "@/lib/api-client";
 import { resizeImage } from "@/lib/resize";
 import { buildSku } from "@/lib/sku";
+import { AccessGate } from "./AccessGate";
 import { EbayConnect } from "./EbayConnect";
 import { ReviewBoard } from "./ReviewBoard";
 import { ListingsView } from "./ListingsView";
@@ -11,6 +12,7 @@ import type {
   AnalyzeResponse,
   ItemGroup,
   ListingResult,
+  PackageShippingDetails,
   Photo,
   SortResponse,
 } from "@/lib/types";
@@ -25,6 +27,26 @@ function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `id-${Math.floor(performance.now() * 1000)}-${Math.random()}`;
+}
+
+function parsePositive(value: string | undefined): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function packageError(pkg: PackageShippingDetails | undefined): string | null {
+  const pounds = parsePositive(pkg?.weightPounds);
+  const ounces = parsePositive(pkg?.weightOunces);
+  const length = parsePositive(pkg?.lengthInches);
+  const width = parsePositive(pkg?.widthInches);
+  const height = parsePositive(pkg?.heightInches);
+  if (pounds * 16 + ounces <= 0) {
+    return "Enter a package weight greater than 0 before posting to eBay.";
+  }
+  if (length <= 0 || width <= 0 || height <= 0) {
+    return "Enter package length, width, and height greater than 0 before posting to eBay.";
+  }
+  return null;
 }
 
 // Parse a fetch response as JSON, but turn non-JSON error bodies (e.g. a 413
@@ -97,7 +119,11 @@ export default function Home() {
     check();
     const onFocus = () => check();
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    window.addEventListener("access-granted", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("access-granted", onFocus);
+    };
   }, []);
 
   // ── Upload ──────────────────────────────────────────────
@@ -284,10 +310,37 @@ export default function Home() {
       )
     );
 
+  const editPackageShipping = (
+    groupId: string,
+    patch: Partial<PackageShippingDetails>
+  ) =>
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              packageShipping: { ...g.packageShipping, ...patch } as PackageShippingDetails,
+              postError: undefined,
+            }
+          : g
+      )
+    );
+
   const postGroup = useCallback(
     async (groupId: string) => {
       const group = groupsRef.current.find((g) => g.id === groupId);
       if (!group || !group.listing) return;
+      const invalidPackage = packageError(group.packageShipping);
+      if (invalidPackage) {
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === groupId
+              ? { ...g, postStatus: "error", postError: invalidPackage }
+              : g
+          )
+        );
+        return;
+      }
       const images = group.photoIds
         .map((id) => photoMap.get(id))
         .filter((p): p is Photo => Boolean(p))
@@ -302,6 +355,7 @@ export default function Home() {
           sku: group.sku,
           listing: group.listing,
           images,
+          packageShipping: group.packageShipping,
         });
         const data = (await readJson(res)) as {
           success: boolean;
@@ -345,7 +399,8 @@ export default function Home() {
   );
 
   return (
-    <main className="wrap">
+    <AccessGate>
+      <main className="wrap">
       <header className="masthead">
         <span className="logo-mark" aria-hidden="true">
           🪄
@@ -509,6 +564,7 @@ export default function Home() {
           photoById={photoById}
           ebayConnected={ebayConnected}
           onEdit={editListing}
+          onPackageEdit={editPackageShipping}
           onRetry={writeGroup}
           onPost={postGroup}
           onPostAll={postAll}
@@ -520,6 +576,7 @@ export default function Home() {
         Your photos are sent securely to sort and write listings, and are not
         stored. One-click posting to eBay is coming in the next phase.
       </p>
-    </main>
+      </main>
+    </AccessGate>
   );
 }

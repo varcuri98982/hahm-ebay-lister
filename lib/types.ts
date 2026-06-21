@@ -22,6 +22,14 @@ export interface ListingResult {
   item_profile?: string;
 }
 
+export interface PackageShippingDetails {
+  weightPounds: string;
+  weightOunces: string;
+  lengthInches: string;
+  widthInches: string;
+  heightInches: string;
+}
+
 export interface AnalyzeRequestBody {
   // Browser-resized JPEG data URLs or raw base64 strings.
   images: { mediaType: string; data: string }[];
@@ -60,6 +68,7 @@ export interface ItemGroup {
   name: string;
   photoIds: string[];
   listing?: ListingResult;
+  packageShipping?: PackageShippingDetails;
   status: ItemStatus;
   error?: string;
   // eBay posting state (Phase 2)

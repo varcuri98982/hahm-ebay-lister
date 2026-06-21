@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ItemGroup, ListingResult, Photo } from "@/lib/types";
+import type {
+  ItemGroup,
+  ListingResult,
+  PackageShippingDetails,
+  Photo,
+} from "@/lib/types";
 
 const TITLE_LIMIT = 80;
 
@@ -56,6 +61,7 @@ interface ListingCardProps {
   photoById: (id: string) => Photo | undefined;
   ebayConnected: boolean;
   onEdit: (groupId: string, patch: Partial<ListingResult>) => void;
+  onPackageEdit: (groupId: string, patch: Partial<PackageShippingDetails>) => void;
   onRetry: (groupId: string) => void;
   onPost: (groupId: string) => void;
 }
@@ -65,6 +71,7 @@ export function ListingCard({
   photoById,
   ebayConnected,
   onEdit,
+  onPackageEdit,
   onRetry,
   onPost,
 }: ListingCardProps) {
@@ -204,6 +211,80 @@ export function ListingCard({
                 <div className="v">{listing.size}</div>
               </div>
             )}
+          </div>
+
+          <div className="shipping-box">
+            <div className="shipping-head">
+              <strong>Package shipping details</strong>
+              <span>Required before posting to eBay</span>
+            </div>
+            <div className="shipping-grid">
+              <label>
+                <span>Weight lb</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={group.packageShipping?.weightPounds ?? ""}
+                  onChange={(e) =>
+                    onPackageEdit(group.id, { weightPounds: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span>Weight oz</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  inputMode="decimal"
+                  value={group.packageShipping?.weightOunces ?? ""}
+                  onChange={(e) =>
+                    onPackageEdit(group.id, { weightOunces: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span>Length in</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  inputMode="decimal"
+                  value={group.packageShipping?.lengthInches ?? ""}
+                  onChange={(e) =>
+                    onPackageEdit(group.id, { lengthInches: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span>Width in</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  inputMode="decimal"
+                  value={group.packageShipping?.widthInches ?? ""}
+                  onChange={(e) =>
+                    onPackageEdit(group.id, { widthInches: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span>Height in</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  inputMode="decimal"
+                  value={group.packageShipping?.heightInches ?? ""}
+                  onChange={(e) =>
+                    onPackageEdit(group.id, { heightInches: e.target.value })
+                  }
+                />
+              </label>
+            </div>
           </div>
 
           <div className="result-field">
