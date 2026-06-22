@@ -60,7 +60,7 @@ export interface Photo {
 
 export type ItemStatus = "idle" | "writing" | "done" | "error";
 
-export type PostStatus = "idle" | "posting" | "posted" | "drafted" | "error";
+export type PostStatus = "idle" | "posting" | "posted" | "error";
 
 export interface ItemGroup {
   id: string;
@@ -74,6 +74,5 @@ export interface ItemGroup {
   // eBay posting state (Phase 2)
   postStatus?: PostStatus;
   listingId?: string;
-  offerId?: string;
   postError?: string;
 }

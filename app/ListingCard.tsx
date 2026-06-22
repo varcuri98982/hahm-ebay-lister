@@ -64,7 +64,6 @@ interface ListingCardProps {
   onPackageEdit: (groupId: string, patch: Partial<PackageShippingDetails>) => void;
   onRetry: (groupId: string) => void;
   onPost: (groupId: string) => void;
-  onDraft: (groupId: string) => void;
 }
 
 export function ListingCard({
@@ -75,7 +74,6 @@ export function ListingCard({
   onPackageEdit,
   onRetry,
   onPost,
-  onDraft,
 }: ListingCardProps) {
   const [open, setOpen] = useState(true);
   const listing = group.listing;
@@ -333,21 +331,8 @@ export function ListingCard({
                 </>
               ) : null}
             </p>
-          ) : group.postStatus === "drafted" ? (
-            <p className="post-result ok">
-              Saved as eBay draft
-              {group.offerId ? ` · Offer ${group.offerId}` : ""}
-            </p>
           ) : ebayConnected ? (
             <div className="post-row">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => onDraft(group.id)}
-                disabled={group.postStatus === "posting"}
-              >
-                Save eBay draft
-              </button>
               <button
                 type="button"
                 className="btn btn-primary"

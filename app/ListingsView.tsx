@@ -21,7 +21,6 @@ interface ListingsViewProps {
   onPackageEdit: (groupId: string, patch: Partial<PackageShippingDetails>) => void;
   onRetry: (groupId: string) => void;
   onPost: (groupId: string) => void;
-  onDraft: (groupId: string) => void;
   onPostAll: () => void;
   onBack: () => void;
 }
@@ -34,7 +33,6 @@ export function ListingsView({
   onPackageEdit,
   onRetry,
   onPost,
-  onDraft,
   onPostAll,
   onBack,
 }: ListingsViewProps) {
@@ -95,7 +93,6 @@ export function ListingsView({
             onPackageEdit={onPackageEdit}
             onRetry={onRetry}
             onPost={onPost}
-            onDraft={onDraft}
           />
         ))}
       </div>

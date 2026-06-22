@@ -18,7 +18,6 @@ import type {
 } from "@/lib/types";
 
 type Step = "upload" | "review" | "listings";
-type EbayPublishMode = "draft" | "publish";
 // Keep a whole batch's sort payload comfortably under Vercel's 4.5 MB request
 // limit (sort sends small thumbnails for every photo at once).
 const MAX_PHOTOS = 100;
@@ -328,7 +327,7 @@ export default function Home() {
     );
 
   const postGroup = useCallback(
-    async (groupId: string, mode: EbayPublishMode = "publish") => {
+    async (groupId: string) => {
       const group = groupsRef.current.find((g) => g.id === groupId);
       if (!group || !group.listing) return;
       const invalidPackage = packageError(group.packageShipping);
@@ -357,25 +356,17 @@ export default function Home() {
           listing: group.listing,
           images,
           packageShipping: group.packageShipping,
-          publishMode: mode,
         });
         const data = (await readJson(res)) as {
           success: boolean;
-          mode?: EbayPublishMode;
           listingId?: string;
-          offerId?: string;
           error?: string;
         };
         if (!data.success) throw new Error(data.error || "eBay rejected the listing.");
         setGroups((prev) =>
           prev.map((g) =>
             g.id === groupId
-              ? {
-                  ...g,
-                  postStatus: data.mode === "draft" ? "drafted" : "posted",
-                  listingId: data.listingId,
-                  offerId: data.offerId,
-                }
+              ? { ...g, postStatus: "posted", listingId: data.listingId }
               : g
           )
         );
@@ -576,7 +567,6 @@ export default function Home() {
           onPackageEdit={editPackageShipping}
           onRetry={writeGroup}
           onPost={postGroup}
-          onDraft={(groupId) => postGroup(groupId, "draft")}
           onPostAll={postAll}
           onBack={() => setStep("review")}
         />
