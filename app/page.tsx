@@ -49,6 +49,44 @@ function packageError(pkg: PackageShippingDetails | undefined): string | null {
   return null;
 }
 
+function samePhotoSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const ids = new Set(a);
+  return b.every((id) => ids.has(id));
+}
+
+function preserveListingWork(
+  nextGroup: ItemGroup,
+  previousGroups: ItemGroup[],
+  claimedPreviousIds: Set<string>
+): ItemGroup {
+  let best: ItemGroup | undefined;
+  let bestScore = 0;
+  const nextIds = new Set(nextGroup.photoIds);
+  for (const previous of previousGroups) {
+    if (claimedPreviousIds.has(previous.id)) continue;
+    const overlap = previous.photoIds.filter((id) => nextIds.has(id)).length;
+    if (overlap > bestScore) {
+      best = previous;
+      bestScore = overlap;
+    }
+  }
+  if (!best || bestScore === 0) return nextGroup;
+  claimedPreviousIds.add(best.id);
+  const photosUnchanged = samePhotoSet(best.photoIds, nextGroup.photoIds);
+  return {
+    ...nextGroup,
+    id: best.id,
+    sku: best.sku || nextGroup.sku,
+    name: best.name || nextGroup.name,
+    listing: best.listing,
+    packageShipping: best.packageShipping,
+    status: best.listing ? "done" : "idle",
+    postStatus: photosUnchanged ? best.postStatus : undefined,
+    listingId: photosUnchanged ? best.listingId : undefined,
+  };
+}
+
 // Parse a fetch response as JSON, but turn non-JSON error bodies (e.g. a 413
 // "Request Entity Too Large" plain-text page) into a friendly message instead
 // of a cryptic "Unexpected token" error.
@@ -163,6 +201,8 @@ export default function Home() {
     setSorting(true);
     setError(null);
     try {
+      const previousGroups = groupsRef.current;
+      const claimedPreviousIds = new Set<string>();
       const res = await apiPost("/api/sort", {
         // Use the small thumbnail for sorting to keep the payload small.
         images: photos.map((p) => ({
@@ -179,13 +219,14 @@ export default function Home() {
       const nextGroups: ItemGroup[] = data.groups.map((g, i) => {
         const ids = g.photoIndices.map(idxToId).filter(Boolean) as string[];
         ids.forEach((id) => assigned.add(id));
-        return {
+        const base: ItemGroup = {
           id: newId(),
           sku: buildSku(binPrefix, i),
           name: g.name,
           photoIds: ids,
           status: "idle",
         };
+        return preserveListingWork(base, previousGroups, claimedPreviousIds);
       });
       const orphans = (data.orphanIndices ?? [])
         .map(idxToId)
@@ -295,7 +336,13 @@ export default function Home() {
   );
 
   const writeAll = async () => {
-    const usable = groups.filter((g) => g.photoIds.length > 0).map((g) => g.id);
+    const usable = groups
+      .filter((g) => g.photoIds.length > 0 && g.status !== "done")
+      .map((g) => g.id);
+    if (usable.length === 0 && groups.some((g) => g.status === "done")) {
+      setStep("listings");
+      return;
+    }
     if (usable.length === 0) return;
     setStep("listings");
     await runPool(usable, WRITE_CONCURRENCY, writeGroup);
@@ -330,6 +377,21 @@ export default function Home() {
     async (groupId: string) => {
       const group = groupsRef.current.find((g) => g.id === groupId);
       if (!group || !group.listing) return;
+      const sku = group.sku.trim();
+      if (!sku) {
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === groupId
+              ? {
+                  ...g,
+                  postStatus: "error",
+                  postError: "Enter a custom SKU before posting to eBay.",
+                }
+              : g
+          )
+        );
+        return;
+      }
       const invalidPackage = packageError(group.packageShipping);
       if (invalidPackage) {
         setGroups((prev) =>
@@ -352,7 +414,7 @@ export default function Home() {
       );
       try {
         const res = await apiPost("/api/ebay/publish", {
-          sku: group.sku,
+          sku,
           listing: group.listing,
           images,
           packageShipping: group.packageShipping,
@@ -397,6 +459,20 @@ export default function Home() {
     () => groups.filter((g) => g.photoIds.length > 0),
     [groups]
   );
+
+  const startOver = () => {
+    setPhotos([]);
+    setBinPrefix("");
+    setGroups([]);
+    setOrphanIds([]);
+    setDragging(false);
+    setSorting(false);
+    setError(null);
+    setStep("upload");
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
 
   return (
     <AccessGate>
@@ -447,8 +523,8 @@ export default function Home() {
                 autoCapitalize="characters"
               />
               <span className="field-hint">
-                Each item gets {binPrefix ? `${binPrefix.trim()}-A, ${binPrefix.trim()}-B` : "A, B, C"}
-                … in order, so you can find it in the bin later. You can edit any
+                Each item gets {binPrefix ? `${binPrefix.trim()}-A, ${binPrefix.trim()}-B` : "a blank SKU"}
+                … in order. You can edit any
                 SKU after sorting.
               </span>
             </div>
@@ -565,10 +641,12 @@ export default function Home() {
           ebayConnected={ebayConnected}
           onEdit={editListing}
           onPackageEdit={editPackageShipping}
+          onRenameSku={renameSku}
           onRetry={writeGroup}
           onPost={postGroup}
           onPostAll={postAll}
           onBack={() => setStep("review")}
+          onStartOver={startOver}
         />
       )}
 

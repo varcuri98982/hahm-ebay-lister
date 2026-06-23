@@ -19,10 +19,12 @@ interface ListingsViewProps {
   ebayConnected: boolean;
   onEdit: (groupId: string, patch: Partial<ListingResult>) => void;
   onPackageEdit: (groupId: string, patch: Partial<PackageShippingDetails>) => void;
+  onRenameSku: (groupId: string, sku: string) => void;
   onRetry: (groupId: string) => void;
   onPost: (groupId: string) => void;
   onPostAll: () => void;
   onBack: () => void;
+  onStartOver: () => void;
 }
 
 export function ListingsView({
@@ -31,10 +33,12 @@ export function ListingsView({
   ebayConnected,
   onEdit,
   onPackageEdit,
+  onRenameSku,
   onRetry,
   onPost,
   onPostAll,
   onBack,
+  onStartOver,
 }: ListingsViewProps) {
   const done = groups.filter((g) => g.status === "done").length;
   const writing = groups.filter((g) => g.status === "writing").length;
@@ -91,6 +95,7 @@ export function ListingsView({
             ebayConnected={ebayConnected}
             onEdit={onEdit}
             onPackageEdit={onPackageEdit}
+            onRenameSku={onRenameSku}
             onRetry={onRetry}
             onPost={onPost}
           />
@@ -100,6 +105,9 @@ export function ListingsView({
       <div className="result-actions">
         <button type="button" className="btn btn-ghost" onClick={onBack}>
           ← Back to items
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onStartOver}>
+          Start another listing
         </button>
         <button
           type="button"

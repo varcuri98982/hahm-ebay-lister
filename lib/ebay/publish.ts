@@ -19,6 +19,11 @@ import type { ListingResult, PackageShippingDetails } from "@/lib/types";
 
 // ── Constants (from the Python script) ───────────────────────────────────────
 
+const EBAY_MAX_PHOTOS = 24;
+const DEFAULT_LOCATION_KEY = "SAINT_PAUL_MN";
+const DEFAULT_LOCATION_POSTAL_CODE = "55106";
+const LEGACY_PLACEHOLDER_POSTAL_CODE = "10001";
+
 const CATEGORY_MAP: Record<string, string> = {
   womens_top: "15724", womens_dress: "63861", womens_skirt: "11554",
   womens_pants: "57988", womens_coat: "57990", womens_sweater: "63864",
@@ -515,25 +520,43 @@ export async function fetchAccountSetup(accessToken: string): Promise<AccountSet
   };
 }
 
+function locationPostalCode(loc: any): string {
+  return String(loc?.location?.address?.postalCode || loc?.address?.postalCode || "").trim();
+}
+
+function locationKey(loc: any): string {
+  return String(loc?.merchantLocationKey || "").trim();
+}
+
 async function fetchOrCreateLocation(accessToken: string): Promise<string> {
+  const configuredKey = String(process.env.EBAY_LOCATION_KEY || "").trim();
   const list = await ebayRequest(accessToken, "GET", `${EBAY_INV_BASE}/location`);
   if (list.ok) {
-    for (const loc of list.json?.locations || []) {
-      if (loc.merchantLocationStatus === "ENABLED" && loc.merchantLocationKey) {
-        return loc.merchantLocationKey;
-      }
+    const enabled = (list.json?.locations || []).filter(
+      (loc: any) => loc.merchantLocationStatus === "ENABLED" && locationKey(loc)
+    );
+    if (configuredKey && enabled.some((loc: any) => locationKey(loc) === configuredKey)) {
+      return configuredKey;
     }
+    const saintPaul = enabled.find(
+      (loc: any) => locationPostalCode(loc) === DEFAULT_LOCATION_POSTAL_CODE
+    );
+    if (saintPaul) return locationKey(saintPaul);
+    const accountLocation = enabled.find(
+      (loc: any) => locationPostalCode(loc) !== LEGACY_PLACEHOLDER_POSTAL_CODE
+    );
+    if (accountLocation) return locationKey(accountLocation);
   }
-  const key = "HOME_OFFICE";
+  const key = configuredKey || DEFAULT_LOCATION_KEY;
   const payload = {
-    name: "Home Office",
+    name: "Saint Paul",
     merchantLocationStatus: "ENABLED",
     locationTypes: ["WAREHOUSE"],
     location: {
       address: {
-        // Set EBAY_LOCATION_POSTAL_CODE to your own ZIP. Only used the first
-        // time, to create an inventory location if you don't already have one.
-        postalCode: process.env.EBAY_LOCATION_POSTAL_CODE || "10001",
+        postalCode: process.env.EBAY_LOCATION_POSTAL_CODE || DEFAULT_LOCATION_POSTAL_CODE,
+        city: "Saint Paul",
+        stateOrProvince: "MN",
         country: "US",
       },
     },
@@ -629,7 +652,7 @@ export async function publishListing(
 
   // 1. Upload photos → EPS URLs.
   const photoUrls: string[] = [];
-  for (const img of input.images.slice(0, 12)) {
+  for (const img of input.images.slice(0, EBAY_MAX_PHOTOS)) {
     const url = await uploadPhoto(accessToken, img.data, img.mediaType, `${sku}.jpg`);
     if (url) photoUrls.push(url);
   }
@@ -660,7 +683,7 @@ export async function publishListing(
       title: String(listing.title || "Untitled").slice(0, 80),
       description: listing.description || "",
       aspects,
-      imageUrls: photoUrls.slice(0, 12),
+      imageUrls: photoUrls.slice(0, EBAY_MAX_PHOTOS),
     },
     condition,
     conditionDescription: listing.condition_notes || "",

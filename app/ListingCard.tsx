@@ -62,6 +62,7 @@ interface ListingCardProps {
   ebayConnected: boolean;
   onEdit: (groupId: string, patch: Partial<ListingResult>) => void;
   onPackageEdit: (groupId: string, patch: Partial<PackageShippingDetails>) => void;
+  onRenameSku: (groupId: string, sku: string) => void;
   onRetry: (groupId: string) => void;
   onPost: (groupId: string) => void;
 }
@@ -72,6 +73,7 @@ export function ListingCard({
   ebayConnected,
   onEdit,
   onPackageEdit,
+  onRenameSku,
   onRetry,
   onPost,
 }: ListingCardProps) {
@@ -154,6 +156,18 @@ export function ListingCard({
           </div>
 
           <div className="meta-row">
+            <div className="stat editable">
+              <label className="k" htmlFor={`sku-${group.id}`}>
+                Custom SKU
+              </label>
+              <input
+                id={`sku-${group.id}`}
+                type="text"
+                value={group.sku}
+                placeholder="Enter SKU"
+                onChange={(e) => onRenameSku(group.id, e.target.value)}
+              />
+            </div>
             <div className="stat editable">
               <label className="k" htmlFor={`price-${group.id}`}>
                 Price

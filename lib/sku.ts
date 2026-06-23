@@ -23,10 +23,10 @@ export function nextSuffix(index: number): string {
   return letters.reverse().join("");
 }
 
-// Build the full item SKU for the Nth item in a bin. With no prefix, fall back
-// to a plain letter so items still have a stable, unique reference.
+// Build the full item SKU for the Nth item in a bin. If no prefix is supplied,
+// leave the SKU blank so the seller can decide the exact custom SKU before post.
 export function buildSku(prefix: string, index: number): string {
   const clean = sanitizeSku(prefix);
   const suffix = nextSuffix(index);
-  return clean ? `${clean}-${suffix}` : suffix;
+  return clean ? `${clean}-${suffix}` : "";
 }
