@@ -177,11 +177,10 @@ async function ebayRequest(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function computeBufferedPrice(raw: number | string | undefined): number {
+function computeListingPrice(raw: number | string | undefined): number {
   let base = typeof raw === "string" ? parseFloat(raw) : raw ?? 0;
   if (!base || Number.isNaN(base) || base <= 0) base = 29.99;
-  const buffered = Math.max(base * 1.18, base + 5);
-  return Math.round(buffered * 100) / 100;
+  return Math.round(base * 100) / 100;
 }
 
 function normalizeConditionInput(value: string | undefined): string {
@@ -724,7 +723,7 @@ export async function publishListing(
   }
 
   // 3. Offer.
-  const price = computeBufferedPrice(listing.suggested_price);
+  const price = computeListingPrice(listing.suggested_price);
   const offerBody: any = {
     sku,
     marketplaceId: EBAY_MARKETPLACE_ID,
